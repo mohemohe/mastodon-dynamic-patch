@@ -80,7 +80,7 @@ func load() []Patch {
 		config = b
 	}
 	patches := make([]Patch, 0)
-	if err := yaml.Unmarshal(config, patches); err != nil {
+	if err := yaml.Unmarshal(config, &patches); err != nil {
 		log.Fatalln(err)
 	}
 	return patches
