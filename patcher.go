@@ -3,9 +3,11 @@ package main
 import (
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"path"
 	"regexp"
+	"sync"
 
 	"gopkg.in/yaml.v2"
 )
@@ -18,22 +20,67 @@ type (
 	}
 )
 
+var patched bool
+
 func main() {
+	patched = false
+	go listen()
+
 	patches := load()
 	for i, p := range patches {
 		log.Println(i, ":", p.File)
 		replace(p)
 	}
+	patched = true
+
+	w := new(sync.WaitGroup)
+	w.Add(1)
+	w.Wait()
+}
+
+func listen() {
+	addr := os.Getenv("PATCH_LISTEN_ADDR")
+	if addr == "" {
+		addr = ":8080"
+	}
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if patched {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("OK"))
+		} else {
+			w.WriteHeader(http.StatusTooEarly)
+			_, _ = w.Write([]byte("NG"))
+		}
+	})
+	log.Println("server listen on " + addr)
+	log.Fatalln(http.ListenAndServe(addr, nil))
 }
 
 func load() []Patch {
-	cd := path.Dir(os.Args[0])
-	b, err := ioutil.ReadFile(path.Join(cd, "config.yaml"))
-	if err != nil {
-		log.Fatalln(err)
+	url := os.Getenv("PATCH_CONFIG_URL")
+	var config []byte
+	if url != "" {
+		resp, err := http.Get(url)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		defer resp.Body.Close()
+		b, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		config = b
+	} else {
+		cd := path.Dir(os.Args[0])
+		b, err := ioutil.ReadFile(path.Join(cd, "config.yaml"))
+		if err != nil {
+			log.Fatalln(err)
+		}
+		config = b
 	}
 	patches := make([]Patch, 0)
-	if err := yaml.Unmarshal(b, patches); err != nil {
+	if err := yaml.Unmarshal(config, patches); err != nil {
 		log.Fatalln(err)
 	}
 	return patches
