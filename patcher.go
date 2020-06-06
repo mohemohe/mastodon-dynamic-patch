@@ -8,6 +8,7 @@ import (
 	"path"
 	"regexp"
 	"sync"
+	"time"
 
 	"gopkg.in/yaml.v2"
 )
@@ -28,8 +29,12 @@ func main() {
 
 	patches := load()
 	for i, p := range patches {
+LOOP:
 		log.Println(i, ":", p.File)
-		replace(p)
+		if !replace(p) {
+			time.Sleep(time.Second)
+			goto LOOP
+		}
 	}
 	patched = true
 
@@ -86,11 +91,11 @@ func load() []Patch {
 	return patches
 }
 
-func replace(patch Patch) {
+func replace(patch Patch) bool {
 	b, err := ioutil.ReadFile(patch.File)
 	if err != nil {
 		log.Println("file read error:", patch.File)
-		return
+		return false
 	}
 	file := string(b)
 
@@ -103,4 +108,6 @@ func replace(patch Patch) {
 	if err := ioutil.WriteFile(patch.File, []byte(file), 644); err != nil {
 		log.Println("file write error:", patch.File)
 	}
+
+	return true
 }
