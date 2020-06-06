@@ -14,6 +14,10 @@ import (
 )
 
 type (
+	Yaml struct {
+		Patches    []Patch `yaml:"patches"`
+		FinishFile string  `yaml:"finish_file"`
+	}
 	Patch struct {
 		File    string `yaml:"file"`
 		Regex   string `yaml:"regex"`
@@ -27,15 +31,21 @@ func main() {
 	patched = false
 	go listen()
 
-	patches := load()
-	for i, p := range patches {
-LOOP:
+	y := load()
+	for i, p := range y.Patches {
+	LOOP:
 		log.Println(i, ":", p.File)
 		if !replace(p) {
 			time.Sleep(time.Second)
 			goto LOOP
 		}
 	}
+	if y.FinishFile != "" {
+		if err := ioutil.WriteFile(y.FinishFile, []byte("OK"), 644); err != nil {
+			log.Println("finish file write error")
+		}
+	}
+
 	patched = true
 
 	w := new(sync.WaitGroup)
@@ -62,7 +72,7 @@ func listen() {
 	log.Fatalln(http.ListenAndServe(addr, nil))
 }
 
-func load() []Patch {
+func load() *Yaml {
 	url := os.Getenv("PATCH_CONFIG_URL")
 	var config []byte
 	if url != "" {
@@ -84,11 +94,11 @@ func load() []Patch {
 		}
 		config = b
 	}
-	patches := make([]Patch, 0)
-	if err := yaml.Unmarshal(config, &patches); err != nil {
+	y := new(Yaml)
+	if err := yaml.Unmarshal(config, y); err != nil {
 		log.Fatalln(err)
 	}
-	return patches
+	return y
 }
 
 func replace(patch Patch) bool {
