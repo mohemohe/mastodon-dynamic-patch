@@ -1,0 +1,38 @@
+---
+kind: pipeline
+name: default
+
+steps:
+  - name: discord notification on start
+    image: plugins/slack
+    settings:
+      webhook:
+        from_secret: discord_webhook
+      template: >
+        {{repo.owner}}/{{repo.name}} ({{build.branch}}) build #{{build.number}} start: {{build.link}}
+
+  - name: docker build
+    image: plugins/docker
+    settings:
+      repo: mohemohe/mastodon-dynamic-patch
+      username:
+        from_secret: dockerhub_username
+      password:
+        from_secret: dockerhub_password
+    when:
+      branch:
+        - master
+
+  - name: discord notification on complete
+    image: plugins/slack
+    settings:
+      webhook:
+        from_secret: discord_webhook
+      template: >
+        {{#success build.status}}
+          {{repo.owner}}/{{repo.name}} ({{build.branch}}) build #{{build.number}} succeeded: {{build.link}}
+        {{else}}
+          {{repo.owner}}/{{repo.name}} ({{build.branch}}) build #{{build.number}} failed: {{build.link}}
+        {{/success}}
+    when:
+      status: [ success, failure ]
