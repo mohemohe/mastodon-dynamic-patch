@@ -45,7 +45,7 @@ func main() {
 			log.Println("finish file write error")
 		}
 	}
-
+	log.Println("patched")
 	patched = true
 
 	w := new(sync.WaitGroup)
